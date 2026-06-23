@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+*.pdb
+# simulation crash artifacts are reproducible from the seed; don't commit dumps
+/artifacts
+*.profraw

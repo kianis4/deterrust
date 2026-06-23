@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+authors = ["Suleyman Kiani"]
+repository = "https://github.com/kianis4/deterrust"
+homepage = "https://github.com/kianis4/deterrust"
+description = "A from-scratch Raft KV store and the deterministic simulation harness that hunts its own consensus bugs and replays them from a single 64-bit seed."
+
+[workspace.dependencies]
+deterrust-raft = { path = "crates/raft" }
+deterrust-kv = { path = "crates/kv" }
+deterrust-sim = { path = "crates/sim" }
+deterrust-check = { path = "crates/check" }
+
+# Deliberately minimal dependency surface — the point is to build the hard parts
+# from scratch. These are leaf utilities, not the substance.
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+# A fast profile for running tens of thousands of simulation seeds in test/bench.
+[profile.sim]
+inherits = "release"
+panic = "unwind"
+debug = false
