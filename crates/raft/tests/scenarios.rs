@@ -42,9 +42,7 @@ impl Cluster {
         for o in outs {
             match o {
                 Output::Send { to, msg } => self.inflight.push_back((to, NodeId(id), msg)),
-                Output::Apply { command, .. } => {
-                    self.applied.entry(id).or_default().push(command)
-                }
+                Output::Apply { command, .. } => self.applied.entry(id).or_default().push(command),
                 Output::ArmElectionTimer | Output::ArmHeartbeatTimer | Output::Redirect { .. } => {}
             }
         }
@@ -103,7 +101,10 @@ fn single_node_elects_itself_and_commits() {
     c.elect(0);
     assert!(c.node(0).is_leader());
     c.propose(0, 0, 1, 42);
-    assert_eq!(c.applied.get(&0).map(|v| v.as_slice()), Some([42].as_slice()));
+    assert_eq!(
+        c.applied.get(&0).map(|v| v.as_slice()),
+        Some([42].as_slice())
+    );
     assert_eq!(c.node(0).commit_index(), 1);
 }
 

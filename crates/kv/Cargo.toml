@@ -1,6 +1,10 @@
 [package]
 name = "deterrust-kv"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Replicated key-value application state machine with client sessions"
 
 [dependencies]
+deterrust-raft.workspace = true

@@ -232,7 +232,10 @@ impl<C: Clone> RaftNode<C> {
     // ---- replication ----
 
     fn send_append_entries(&self, to: NodeId, out: &mut Vec<Output<C>>) {
-        let next = *self.next_index.get(&to).unwrap_or(&(self.last_log_index() + 1));
+        let next = *self
+            .next_index
+            .get(&to)
+            .unwrap_or(&(self.last_log_index() + 1));
         let prev_log_index = next.saturating_sub(1);
         let prev_log_term = self.term_at(prev_log_index);
         let entries: Vec<LogEntry<C>> = if next <= self.last_log_index() {
@@ -457,18 +460,14 @@ impl<C: Clone> RaftNode<C> {
         // entry above them commits. Skipping the term check is a classic data-loss
         // bug.
         let threshold = if self.bug.commit_on_single_ack {
-            2 // self + any one follower — wrong for clusters larger than 3
+            1 // self only — the classic "premature commit before replication" bug
         } else {
             self.majority()
         };
         let mut n = self.last_log_index();
         while n > self.commit_index {
             if self.term_at(n) == self.current_term {
-                let count = 1 + self
-                    .match_index
-                    .values()
-                    .filter(|&&m| m >= n)
-                    .count();
+                let count = 1 + self.match_index.values().filter(|&&m| m >= n).count();
                 if count >= threshold {
                     self.commit_index = n;
                     break;
