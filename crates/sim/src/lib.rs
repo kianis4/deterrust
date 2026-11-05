@@ -26,9 +26,9 @@ pub use rng::Rng;
 pub enum FaultLevel {
     /// Perfect network: no loss, no duplication, no partitions.
     None,
-    /// Light loss/duplication and occasional partitions.
+    /// Light loss/duplication, with the same partition schedule as `Aggressive`.
     Mild,
-    /// Heavy loss/duplication and frequent partitions — the bug-hunting setting.
+    /// Heavy loss/duplication and partitions: the bug-hunting setting.
     Aggressive,
 }
 

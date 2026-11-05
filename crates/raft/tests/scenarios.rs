@@ -64,6 +64,20 @@ impl Cluster {
         }
     }
 
+    /// Like `settle`, but every message addressed to `cut` is lost in transit.
+    fn settle_dropping_to(&mut self, cut: u64) {
+        let mut guard = 0;
+        while let Some((to, from, msg)) = self.inflight.pop_front() {
+            if to.0 == cut {
+                continue;
+            }
+            let outs = self.nodes[to.0 as usize].step(Input::Deliver { from, msg });
+            self.absorb(to.0, outs);
+            guard += 1;
+            assert!(guard < 100_000, "message pump failed to converge");
+        }
+    }
+
     fn elect(&mut self, id: u64) {
         self.step(id, Input::ElectionTimeout);
         self.settle();
@@ -249,28 +263,40 @@ fn leader_does_not_commit_previous_term_entry_by_count_alone() {
     // committed merely because it is replicated on a majority. It commits only
     // once a current-term entry on top of it reaches a majority.
     //
-    // We approximate the dangerous shape: node 0 leads term 1 and gets entry 1
-    // replicated to a majority but NOT yet committed (no heartbeat carrying the
-    // commit). A new leader at term 2 that holds entry 1 must not retroactively
-    // count it as committed until it commits one of its own term-2 entries.
+    // Setup: node 0 leads term 1 and replicates entry 1 to nodes 1 and 2, but
+    // every reply to node 0 is lost, so nobody ever commits entry 1. Node 1 then
+    // wins term 2. Its first AppendEntries round makes both followers report
+    // match_index = 1, so entry 1 sits on all three nodes. Counting replicas
+    // alone would commit it here; the current-term rule (node.rs:469) must not.
     let mut c = Cluster::new(3, BugConfig::default());
-    c.elect(1); // node 1 leads term 1
-    c.propose(1, 0, 1, 55); // entry 1 @ term 1, committed on node 1
-    c.heartbeat(1); // replicate to all
-    assert_eq!(c.node(0).last_log_index(), 1);
-
-    // New election: node 0 wins term 2. Its commit_index for entry 1 must come
-    // from committing a term-2 entry, not from entry 1's replica count.
-    c.elect(0);
-    let commit_before = c.node(0).commit_index();
-    // Without a new proposal, a correct leader has not advanced commit past what
-    // it already knew; crucially it must not "discover" term-1 entries committed.
-    assert!(
-        commit_before <= 1,
-        "commit index should not jump on election alone"
+    c.elect(0); // node 0 leads term 1
+    c.step(
+        0,
+        Input::Propose {
+            client: ClientId(0),
+            seq: 1,
+            command: 55,
+        },
     );
-    // Now a term-2 proposal commits, which also makes entry 1 durable.
-    c.propose(0, 0, 2, 66);
-    assert_eq!(c.node(0).term_at(2), 2);
-    assert_eq!(c.node(0).commit_index(), 2);
+    c.settle_dropping_to(0); // followers append entry 1; their acks are lost
+    for n in 0..3 {
+        assert_eq!(c.node(n).term_at(1), 1, "node {n} should hold entry 1");
+        assert_eq!(c.node(n).commit_index(), 0, "node {n} must not commit yet");
+    }
+
+    c.elect(1); // node 1 wins term 2; followers ack its AppendEntries
+    assert_eq!(c.leaders(), vec![1]);
+    assert_eq!(c.node(1).current_term(), 2);
+    assert_eq!(
+        c.node(1).commit_index(),
+        0,
+        "term-2 leader committed a term-1 entry by counting replicas (§5.4.2)"
+    );
+    assert!(c.applied.is_empty(), "nothing may be applied yet");
+
+    // A term-2 entry reaching a majority commits it, and entry 1 with it.
+    c.propose(1, 0, 2, 66);
+    assert_eq!(c.node(1).term_at(2), 2);
+    assert_eq!(c.node(1).commit_index(), 2);
+    assert_eq!(c.applied.get(&1).unwrap().as_slice(), [55, 66]);
 }

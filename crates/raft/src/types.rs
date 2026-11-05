@@ -41,8 +41,8 @@ pub struct LogEntry<C> {
 /// to a classic real-world Raft mistake.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BugConfig {
-    /// Leader advances `commit_index` once a *single* follower acks, instead of
-    /// requiring a majority. Causes acknowledged writes to be lost when the
+    /// Leader advances `commit_index` on its own copy alone (a threshold of 1)
+    /// instead of requiring a majority. Causes acknowledged writes to be lost when the
     /// minority leader is partitioned away. (§5.3 / §5.4 majority rule.)
     pub commit_on_single_ack: bool,
     /// Follower accepts `AppendEntries` from a leader whose term is *older* than
