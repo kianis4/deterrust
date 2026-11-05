@@ -24,5 +24,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace
+      # 10000 seeds x 200 ops: deep enough that removing the current-term commit
+      # rule (crates/raft/src/node.rs:469) fails at seed 1370. ~34 s on one core.
       - name: fuzz smoke (deterministic sweep)
-        run: cargo run --release -p deterrust -- fuzz --seeds 500 --nodes 5 --ops 80
+        run: cargo run --release -p deterrust -- fuzz --seeds 10000 --nodes 5 --ops 200
